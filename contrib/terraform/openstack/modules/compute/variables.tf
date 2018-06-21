@@ -56,6 +56,10 @@ variable "bastion_fips" {
   type = "list"
 }
 
+variable "bastion_allowed_remote_ips" {
+  type = "list"
+}
+
 variable "supplementary_master_groups" {
   default = ""
 }
