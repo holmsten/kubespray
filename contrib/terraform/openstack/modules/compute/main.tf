@@ -3,61 +3,47 @@ resource "openstack_compute_keypair_v2" "k8s" {
   public_key = "${chomp(file(var.public_key_path))}"
 }
 
-resource "openstack_compute_secgroup_v2" "k8s_master" {
+resource "openstack_networking_secgroup_v2" "k8s_master" {
   name        = "${var.cluster_name}-k8s-master"
   description = "${var.cluster_name} - Kubernetes Master"
-
-  rule {
-    ip_protocol = "tcp"
-    from_port   = "6443"
-    to_port     = "6443"
-    cidr        = "0.0.0.0/0"
-  }
 }
 
-resource "openstack_compute_secgroup_v2" "bastion" {
+resource "openstack_networking_secgroup_rule_v2" "k8s_master" {
+  direction = "ingress"
+  ethertype = "IPv4"
+  protocol = "tcp"
+  port_range_min = "6443"
+  port_range_max = "6443"
+  remote_ip_prefix = "0.0.0.0/0"
+  security_group_id = "${openstack_networking_secgroup_v2.k8s_master.id}"
+}
+
+resource "openstack_networking_secgroup_v2" "bastion" {
   name        = "${var.cluster_name}-bastion"
   description = "${var.cluster_name} - Bastion Server"
-
-  rule {
-    ip_protocol = "tcp"
-    from_port   = "22"
-    to_port     = "22"
-    cidr        = "0.0.0.0/0"
-  }
 }
 
-resource "openstack_compute_secgroup_v2" "k8s" {
+resource "openstack_networking_secgroup_rule_v2" "bastion" {
+  count = "${length(var.bastion_allowed_remote_ips)}"
+  direction = "ingress"
+  ethertype = "IPv4"
+  protocol = "tcp"
+  port_range_min = "22"
+  port_range_max = "22"
+  remote_ip_prefix = "${var.bastion_allowed_remote_ips[count.index]}"
+  security_group_id = "${openstack_networking_secgroup_v2.bastion.id}"
+}
+
+resource "openstack_networking_secgroup_v2" "k8s" {
   name        = "${var.cluster_name}-k8s"
   description = "${var.cluster_name} - Kubernetes"
+}
 
-  rule {
-    ip_protocol = "icmp"
-    from_port   = "-1"
-    to_port     = "-1"
-    cidr        = "0.0.0.0/0"
-  }
-
-  rule {
-    ip_protocol = "tcp"
-    from_port   = "1"
-    to_port     = "65535"
-    self        = true
-  }
-
-  rule {
-    ip_protocol = "udp"
-    from_port   = "1"
-    to_port     = "65535"
-    self        = true
-  }
-
-  rule {
-    ip_protocol = "icmp"
-    from_port   = "-1"
-    to_port     = "-1"
-    self        = true
-  }
+resource "openstack_networking_secgroup_rule_v2" "k8s" {
+  direction = "ingress"
+  ethertype = "IPv4"
+  remote_group_id = "${openstack_networking_secgroup_v2.k8s.id}"
+  security_group_id = "${openstack_networking_secgroup_v2.k8s.id}"
 }
 
 resource "openstack_compute_servergroup_v2" "k8s_master" {
@@ -82,8 +68,8 @@ resource "openstack_compute_instance_v2" "bastion" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s.name}",
-    "${openstack_compute_secgroup_v2.bastion.name}",
+  security_groups = ["${openstack_networking_secgroup_v2.k8s.name}",
+    "${openstack_networking_secgroup_v2.bastion.name}",
     "default",
   ]
 
@@ -111,9 +97,9 @@ resource "openstack_compute_instance_v2" "k8s_master" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s_master.name}",
-    "${openstack_compute_secgroup_v2.bastion.name}",
-    "${openstack_compute_secgroup_v2.k8s.name}",
+  security_groups = ["${openstack_networking_secgroup_v2.k8s_master.name}",
+    "${openstack_networking_secgroup_v2.bastion.name}",
+    "${openstack_networking_secgroup_v2.k8s.name}",
     "default",
   ]
 
@@ -145,9 +131,9 @@ resource "openstack_compute_instance_v2" "k8s_master_no_etcd" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s_master.name}",
-    "${openstack_compute_secgroup_v2.bastion.name}",
-    "${openstack_compute_secgroup_v2.k8s.name}",
+  security_groups = ["${openstack_networking_secgroup_v2.k8s_master.name}",
+    "${openstack_networking_secgroup_v2.bastion.name}",
+    "${openstack_networking_secgroup_v2.k8s.name}",
   ]
 
   scheduler_hints {
@@ -178,7 +164,7 @@ resource "openstack_compute_instance_v2" "etcd" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s.name}"]
+  security_groups = ["${openstack_networking_secgroup_v2.k8s.name}"]
 
   metadata = {
     ssh_user         = "${var.ssh_user}"
@@ -200,8 +186,8 @@ resource "openstack_compute_instance_v2" "k8s_master_no_floating_ip" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s_master.name}",
-    "${openstack_compute_secgroup_v2.k8s.name}",
+  security_groups = ["${openstack_networking_secgroup_v2.k8s_master.name}",
+    "${openstack_networking_secgroup_v2.k8s.name}",
     "default",
   ]
 
@@ -229,8 +215,8 @@ resource "openstack_compute_instance_v2" "k8s_master_no_floating_ip_no_etcd" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s_master.name}",
-    "${openstack_compute_secgroup_v2.k8s.name}",
+  security_groups = ["${openstack_networking_secgroup_v2.k8s_master.name}",
+    "${openstack_networking_secgroup_v2.k8s.name}",
   ]
 
   scheduler_hints {
@@ -257,8 +243,8 @@ resource "openstack_compute_instance_v2" "k8s_node" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s.name}",
-    "${openstack_compute_secgroup_v2.bastion.name}",
+  security_groups = ["${openstack_networking_secgroup_v2.k8s.name}",
+    "${openstack_networking_secgroup_v2.bastion.name}",
     "default",
   ]
 
@@ -290,7 +276,7 @@ resource "openstack_compute_instance_v2" "k8s_node_no_floating_ip" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s.name}",
+  security_groups = ["${openstack_networking_secgroup_v2.k8s.name}",
     "default",
   ]
 
@@ -343,7 +329,7 @@ resource "openstack_compute_instance_v2" "glusterfs_node_no_floating_ip" {
     name = "${var.network_name}"
   }
 
-  security_groups = ["${openstack_compute_secgroup_v2.k8s.name}",
+  security_groups = ["${openstack_networking_secgroup_v2.k8s.name}",
     "default",
   ]
 

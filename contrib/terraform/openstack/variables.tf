@@ -117,6 +117,12 @@ variable "supplementary_master_groups" {
   default = ""
 }
 
+variable "bastion_allowed_remote_ips" {
+  description = "An array of CIDRs allowed to SSH to hosts"
+  type = "list"
+  default = ["0.0.0.0/0"]
+}
+
 variable "availability_zones" {
   description = "An array of availability zones we want to deploy in"
   type        = "list"
