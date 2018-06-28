@@ -64,6 +64,10 @@ variable "supplementary_master_groups" {
   default = ""
 }
 
+variable "supplementary_node_groups" {
+  default = ""
+}
+
 variable "availability_zones" {
   type = "list"
 }
