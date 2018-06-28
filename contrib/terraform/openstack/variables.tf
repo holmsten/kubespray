@@ -117,6 +117,11 @@ variable "supplementary_master_groups" {
   default = ""
 }
 
+variable "supplementary_node_groups" {
+  description = "supplementary kubespray ansible groups for worker nodes, such as kube-ingress"
+  default = ""
+}
+
 variable "bastion_allowed_remote_ips" {
   description = "An array of CIDRs allowed to SSH to hosts"
   type = "list"
